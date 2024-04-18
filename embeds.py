@@ -62,7 +62,6 @@ def preprocess_text(text):
     # Convert text to lowercase
     text = text.lower()
 
-    # Remove extra whitespace
     text = text.split()
 
     return text

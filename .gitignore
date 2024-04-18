@@ -11,3 +11,7 @@ Thumbs.db
 .ipynb_checkpoints
 
 dataset/
+
+pan20-authorship-verification-training-small
+
+__pycache__/
