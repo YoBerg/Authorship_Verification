@@ -5,6 +5,9 @@ from nltk.corpus import stopwords
 from gensim.models import Word2Vec
 import gensim.downloader as api
 import pandas as pd
+import numpy as np
+from io import StringIO
+from tqdm import tqdm
 
 import torch
 from torch.utils.data import IterableDataset
@@ -20,7 +23,7 @@ class Dataset():
         with open (labels_url, 'r') as file:
             i = 0
             for line in file:
-                if (i >= 10000):
+                if (i >= 100):
                     break
                 labels.append(json.loads(line))
                 i += 1
@@ -29,7 +32,7 @@ class Dataset():
         with open (truth_url, 'r') as file:
             i = 0
             for line in file:
-                if (i >= 10000):
+                if (i >= 100):
                     break
                 truths.append(json.loads(line))
                 i += 1
@@ -62,11 +65,14 @@ class Dataset():
         return preprocessed_labels, preprocessed_truth
 
     def embed(self, filtered):
-        return self.glove_embs[filtered].mean(axis=0)
+        try:
+            return self.glove_embs[filtered].mean(axis=0)
+        except KeyError:
+            return np.zeros(50, dtype=np.float32)
 
 
 
-class Pan20Dataset(IterableDataset):
+class Pan20Dataset_Iterative(IterableDataset):
     """
     Filepath: The filepath to the dataset
     Embedding: The embedding to use. Expects it to have the encode function for a list of words
@@ -94,8 +100,61 @@ class Pan20Dataset(IterableDataset):
                     processed = embeds.preprocess_text(data[2][i])
                     data[2][i] = self.embedding.encode(processed)
             
-            # Returns id, fandoms, pairs, same, author ids
+            # Returns id, fandoms, pairs, same_author?, author ids
             yield data[0], data[1], data[2], label[1], label[2]
+
+class Pan20Dataset(Dataset):
+    def __init__(self, X_filepath, y_filepath, embedding = None):
+        self.X_filepath = X_filepath
+        self.y_filepath = y_filepath
+        self.embedding = embedding
+
+        self.X_offsets = self.get_line_offsets(self.X_filepath, 52601)
+        self.y_offsets = self.get_line_offsets(self.y_filepath, 52601)
+
+    def get_line_offsets(self, filepath, pbar_len = None):
+        # Compute the byte offset of each line in the file
+        line_offsets = []
+        if pbar_len:
+            pbar = tqdm(total=pbar_len)
+        with open(filepath, 'rb') as f:
+            offset = 0
+            for line in f:
+                line_offsets.append(offset)
+                offset += len(line)
+                if pbar_len:
+                    pbar.update(1)
+        return line_offsets
+
+    def __len__(self):
+        return len(self.X_offsets)
+
+    def __getitem__(self, idx):
+        # Load and process data from file based on byte offset
+        with open(self.X_filepath, 'rb') as f:
+            f.seek(self.X_offsets[idx])
+            line = f.readline().decode('utf-8')
+            # Process the line as needed
+            X_sample = pd.read_json(StringIO(line), lines=True)
+            
+        with open(self.y_filepath, 'rb') as f:
+            f.seek(self.y_offsets[idx])
+            line = f.readline().decode('utf-8')
+            y_sample = pd.read_json(StringIO(line), lines=True)
+
+        text_id = X_sample['id'][0]
+        domains = X_sample['fandoms'][0]
+        pair = X_sample['pair'][0]
+        same = y_sample['same'][0]
+        authors = y_sample['authors'][0]
+        
+        if self.embedding:
+            for i in range(len(pair)):
+                # processed = preprocess_text(pair[i])
+                processed = word_tokenize(pair[i])
+                pair[i] = self.embedding.encode(processed)
+
+        return text_id, domains, pair, same, authors
 
 def padding_collate_fn(batch):
     """
