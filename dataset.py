@@ -10,7 +10,7 @@ from io import StringIO
 from tqdm import tqdm
 
 import torch
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset, Dataset
 
 import embeds
 
