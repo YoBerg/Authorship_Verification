@@ -71,9 +71,11 @@ class Pan20Dataset(IterableDataset):
     Filepath: The filepath to the dataset
     Embedding: The embedding to use. Expects it to have the encode function for a list of words
     """
-    def __init__(self, filepath, embedding = None):
-        self.reader = pd.read_json(filepath, lines=True, chunksize = 1)
-        self.embedding = embedding
+    def __init__(self, train_filepath, truth_filepath, embedding = None):
+        chunksize = 1
+        self.reader = pd.read_json(train_filepath, lines=True, chunksize = chunksize)
+        self.truth_reader = pd.read_json(truth_filepath, lines=True, chunksize = chunksize)
+        self.embedding = embedding()
 
     """
     Produces an iterator of the dataset.
@@ -82,7 +84,9 @@ class Pan20Dataset(IterableDataset):
     If an embedding is provided, the pairs are transformed into a tensor of embeddings.
     """
     def __iter__(self):
+        labels = iter(self.truth_reader)
         for item in self.reader:
+            label = next(labels).values[0]
             data = item.values[0]
             # Apply transform on dataset.
             if self.embedding:
@@ -90,14 +94,15 @@ class Pan20Dataset(IterableDataset):
                     processed = embeds.preprocess_text(data[2][i])
                     data[2][i] = self.embedding.encode(processed)
             
-            yield data[0], data[1], data[2]
+            # Returns id, fandoms, pairs, same, author ids
+            yield data[0], data[1], data[2], label[1], label[2]
 
 def padding_collate_fn(batch):
     """
     A DataLoader collate function written for the Pan20Dataset that
     automatically pads the text embeddings.
     """
-    ids_batch, domains_batch, pairs_batch = zip(*batch)
+    ids_batch, domains_batch, pairs_batch, same_batch, authors_batch = zip(*batch)
     
     # Get the length of the longest set in the dataset
     max_len = max(max(len(pair[0]) for pair in pairs_batch),
@@ -120,4 +125,4 @@ def padding_collate_fn(batch):
     text_batch_1 = torch.stack(padded_tensors1, dim=0)
     text_batch_2 = torch.stack(padded_tensors2, dim=0)
     
-    return ids_batch, domains_batch, text_batch_1, text_batch_2
+    return ids_batch, domains_batch, text_batch_1, text_batch_2, same_batch, authors_batch
