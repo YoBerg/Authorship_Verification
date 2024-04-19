@@ -15,3 +15,5 @@ dataset/
 pan20-authorship-verification-training-small
 
 __pycache__/
+
+venv/

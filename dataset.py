@@ -11,16 +11,21 @@ from torch.utils.data import IterableDataset
 
 import embeds
 
-class Dataset():
+class DANdataset():
 
     glove_embs = api.load("glove-wiki-gigaword-50")
+    keys = glove_embs.index_to_key
 
     def __init__(self, labels_url, truth_url):
         labels = []
         with open (labels_url, 'r') as file:
             i = 0
             for line in file:
-                if (i >= 10000):
+                print(i)
+                if (i >= 5000 and i < 29500):
+                    i += 1
+                    continue
+                if (i >= 30000):
                     break
                 labels.append(json.loads(line))
                 i += 1
@@ -29,7 +34,10 @@ class Dataset():
         with open (truth_url, 'r') as file:
             i = 0
             for line in file:
-                if (i >= 10000):
+                if (i >= 1000 and i < 29000):
+                    i += 1
+                    continue
+                if (i >= 30000):
                     break
                 truths.append(json.loads(line))
                 i += 1
@@ -38,7 +46,10 @@ class Dataset():
 
     def preprocess(self, labels, truths):
         preprocessed_labels = []
+        i = 0
         for label in labels:
+            print(i)
+            i += 1
             text_1 = label['pair'][0].lower()
             tokens_1 = word_tokenize(text_1)
 
@@ -47,8 +58,8 @@ class Dataset():
 
             stop_words = set(stopwords.words('english'))
 
-            filtered_1 = [word for word in tokens_1 if word not in stop_words]
-            filtered_2 = [word for word in tokens_2 if word not in stop_words]
+            filtered_1 = [word for word in tokens_1 if word not in stop_words and word in self.keys]
+            filtered_2 = [word for word in tokens_2 if word not in stop_words and word in self.keys]
 
             embedded_1 = self.embed(filtered_1)
             embedded_2 = self.embed(filtered_2)
