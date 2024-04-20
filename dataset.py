@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 from io import StringIO
 from tqdm import tqdm
+from sklearn.feature_extraction.text import TfidfVectorizer
+import numpy as np
 
 import torch
 from torch.utils.data import IterableDataset, Dataset
@@ -81,6 +83,72 @@ class DANdataset():
         except KeyError:
             return np.zeros(50, dtype=np.float32)
 
+
+class TFIDFdataset():
+
+    def __init__(self, labels_url, truth_url):
+        labels = []
+        with open (labels_url, 'r') as file:
+            i = 0
+            for line in file:
+                print(i)
+                if (i >= 5000 and i < 29500):
+                    i += 1
+                    continue
+                if (i >= 30000):
+                    break
+                labels.append(json.loads(line))
+                i += 1
+
+        truths = []
+        with open (truth_url, 'r') as file:
+            i = 0
+            for line in file:
+                if (i >= 1000 and i < 29000):
+                    i += 1
+                    continue
+                if (i >= 30000):
+                    break
+                truths.append(json.loads(line))
+                i += 1
+
+        self.labels, self.truth = self.preprocess(labels, truths)
+
+    def tfidf(self, sentences):
+        tfidf = TfidfVectorizer()
+        self.tfidf = tfidf.fit(sentences)
+
+    def preprocess(self, labels, truths):
+        corpus = []
+        for label in labels:
+            corpus.append(label['pair'][0].lower())
+            corpus.append(label['pair'][1].lower())
+        self.tfidf(corpus)
+
+        preprocessed_labels = []
+        for label in labels:
+            text_1 = label['pair'][0].lower()
+            text_2 = label['pair'][1].lower()
+
+            tfidf_1 = self.tfidf.transform([text_1]).toarray()
+            tfidf_2 = self.tfidf.transform([text_2]).toarray()
+
+            while(len(tfidf_1) < 100):
+                tfidf_1 = np.append(tfidf_1, 0.0)
+
+            while(len(tfidf_2) < 100):
+                tfidf_2 = np.append(tfidf_2, 0.0)
+
+            tfidf_1 = tfidf_1[100:]
+            tfidf_2 = tfidf_2[100:]
+
+            preprocessed_labels.append(tfidf_1 - tfidf_2)
+
+        preprocessed_truth = []
+        for truth in truths:
+            preprocessed_truth.append(1 if truth['same'] else 0)
+
+        return preprocessed_labels, preprocessed_truth
 
 
 class Pan20Dataset_Iterative(IterableDataset):
