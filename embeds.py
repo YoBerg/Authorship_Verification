@@ -9,6 +9,8 @@ import string
 
 from dataset import Pan20Dataset, text_only_collate_fn
 from torch.utils.data import DataLoader
+import gensim.downloader as api
+from gensim.models import KeyedVectors
 
 import argparse
 
@@ -48,14 +50,47 @@ class BagOfWords(nn.Embedding):
 
 
 # Word2Vec
+# Needs to be trained.
+class Word2Vec(nn.Embedding):
+    def __init__(self, n, dim):
+        super(Word2Vec, self).__init__(n, dim)
+        self.word_to_ix = defaultdict(lambda:0)
 
+    def save(self, filename):
+        # TODO. How to save both word_to_ix and weights (preferably together)
+        pass
+
+    def encode(self, data):
+        indices = torch.tensor([self.word_to_ix[word] for word in data])
+        return self(indices)
+
+    # Just a redirect to encode
+    def embed(self, data):
+        return self.encode(data)
 
 
 # GloVe
+class GloVe(nn.Embedding):
+    def __init__(self, file = None):
+        if file:
+            self.kv = KeyedVectors.load(file)
+        else:
+            self.kv = api.load("glove-wiki-gigaword-50")
+            
+        super(GloVe, self).__init__(len(self.kv), self.kv.vector_size)
+        self.weight.data.copy_(torch.from_numpy(self.kv.vectors))
+        self.word_to_ix = defaultdict(lambda:0,self.kv.key_to_index)
 
+    def save(self, filename):
+        self.kv.save(filename + '.kvmodel')
 
-
-# OpenAI Text Embedding API
+    def encode(self, data):
+        indices = torch.tensor([self.word_to_ix[word] for word in data])
+        return self(indices)
+        
+    # Just a redirect to encode
+    def embed(self, data):
+        return self.encode(data)
 
 
 
