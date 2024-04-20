@@ -24,7 +24,7 @@ class DANdataset():
         with open (labels_url, 'r') as file:
             i = 0
             for line in file:
-                print(i)
+                # print(i)
                 if (i >= 5000 and i < 29500):
                     i += 1
                     continue
@@ -83,36 +83,38 @@ class DANdataset():
 
 
 
-class Pan20Dataset_Iterative(IterableDataset):
-    """
-    Filepath: The filepath to the dataset
-    Embedding: The embedding to use. Expects it to have the encode function for a list of words
-    """
-    def __init__(self, train_filepath, truth_filepath, embedding = None):
-        chunksize = 1
-        self.reader = pd.read_json(train_filepath, lines=True, chunksize = chunksize)
-        self.truth_reader = pd.read_json(truth_filepath, lines=True, chunksize = chunksize)
-        self.embedding = embedding()
+# ##### Don't need this anymore but will keep it here for now #####
+#
+# class Pan20Dataset_Iterative(IterableDataset):
+#     """
+#     Filepath: The filepath to the dataset
+#     Embedding: The embedding to use. Expects it to have the encode function for a list of words
+#     """
+#     def __init__(self, train_filepath, truth_filepath, embedding = None):
+#         chunksize = 1
+#         self.reader = pd.read_json(train_filepath, lines=True, chunksize = chunksize)
+#         self.truth_reader = pd.read_json(truth_filepath, lines=True, chunksize = chunksize)
+#         self.embedding = embedding()
 
-    """
-    Produces an iterator of the dataset.
-    Every call returns the next item in the dataset.
-    Return tuple: (id, fandoms - 2 element list, pairs - 2 elements list)
-    If an embedding is provided, the pairs are transformed into a tensor of embeddings.
-    """
-    def __iter__(self):
-        labels = iter(self.truth_reader)
-        for item in self.reader:
-            label = next(labels).values[0]
-            data = item.values[0]
-            # Apply transform on dataset.
-            if self.embedding:
-                for i in range(len(data[2])):
-                    processed = embeds.preprocess_text(data[2][i])
-                    data[2][i] = self.embedding.encode(processed)
+#     """
+#     Produces an iterator of the dataset.
+#     Every call returns the next item in the dataset.
+#     Return tuple: (id, fandoms - 2 element list, pairs - 2 elements list)
+#     If an embedding is provided, the pairs are transformed into a tensor of embeddings.
+#     """
+#     def __iter__(self):
+#         labels = iter(self.truth_reader)
+#         for item in self.reader:
+#             label = next(labels).values[0]
+#             data = item.values[0]
+#             # Apply transform on dataset.
+#             if self.embedding:
+#                 for i in range(len(data[2])):
+#                     processed = embeds.preprocess_text(data[2][i])
+#                     data[2][i] = self.embedding.encode(processed)
             
-            # Returns id, fandoms, pairs, same_author?, author ids
-            yield data[0], data[1], data[2], label[1], label[2]
+#             # Returns id, fandoms, pairs, same_author?, author ids
+#             yield data[0], data[1], data[2], label[1], label[2]
 
 class Pan20Dataset(Dataset):
     def __init__(self, X_filepath, y_filepath, embedding = None):
@@ -136,6 +138,9 @@ class Pan20Dataset(Dataset):
                 if pbar_len:
                     pbar.update(1)
         return line_offsets
+
+    def set_embedding(self, embedding):
+        self.embedding = embedding
 
     def __len__(self):
         return len(self.X_offsets)
@@ -196,3 +201,16 @@ def padding_collate_fn(batch):
     text_batch_2 = torch.stack(padded_tensors2, dim=0)
     
     return ids_batch, domains_batch, text_batch_1, text_batch_2, same_batch, authors_batch
+
+def text_only_collate_fn(batch):
+    """
+    A DataLoader collate function that returns only the raw text.
+    """
+    _, _, pairs_batch, _, _ = zip(*batch)
+    texts = []
+    for pair in pairs_batch:
+        text1, text2 = pair
+        texts.append(text1)
+        texts.append(text2)
+
+    return texts
