@@ -1,5 +1,7 @@
 *.zip
 *.kvmodel
+*.png
+*.pt
 
 .DS_Store
 .DS_Store?

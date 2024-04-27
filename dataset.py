@@ -185,13 +185,13 @@ class TFIDFdataset():
 #             yield data[0], data[1], data[2], label[1], label[2]
 
 class Pan20Dataset(Dataset):
-    def __init__(self, X_filepath, y_filepath, embedding = None):
+    def __init__(self, X_filepath, y_filepath, embedding = None, dlen=52601):
         self.X_filepath = X_filepath
         self.y_filepath = y_filepath
         self.embedding = embedding
 
-        self.X_offsets = self.get_line_offsets(self.X_filepath, 52601)
-        self.y_offsets = self.get_line_offsets(self.y_filepath, 52601)
+        self.X_offsets = self.get_line_offsets(self.X_filepath, dlen)
+        self.y_offsets = self.get_line_offsets(self.y_filepath, dlen)
 
     def get_line_offsets(self, filepath, pbar_len = None):
         # Compute the byte offset of each line in the file
@@ -267,8 +267,10 @@ def padding_collate_fn(batch):
         
     text_batch_1 = torch.stack(padded_tensors1, dim=0)
     text_batch_2 = torch.stack(padded_tensors2, dim=0)
+
+    same_batch = torch.tensor(np.array(same_batch, dtype=int), dtype=torch.long)
     
-    return ids_batch, domains_batch, text_batch_1, text_batch_2, same_batch, authors_batch
+    return text_batch_1, text_batch_2, same_batch
 
 def text_only_collate_fn(batch):
     """
@@ -282,3 +284,35 @@ def text_only_collate_fn(batch):
         texts.append(text2)
 
     return texts
+
+def cutting_collate_fn(batch):
+    """
+    A DataLoader collate function written for the Pan20Dataset that
+    automatically truncates the text embeddings to the size of the shortest example.
+    """
+    ids_batch, domains_batch, pairs_batch, same_batch, authors_batch = zip(*batch)
+    
+    # Get the length of the longest set in the dataset
+    min_len = min(min(len(pair[0]) for pair in pairs_batch),
+                  min(len(pair[1]) for pair in pairs_batch))
+    
+#     dim = pairs_batch[0][0].shape[1]
+    
+    cut_tensors1 = []
+    cut_tensors2 = []
+    for pair in pairs_batch:
+        # Extract individual tensors from the pair
+        tensor1, tensor2 = pair
+        # Pad the tensors to max_len
+        cut_tensor1 = tensor1[:min_len]
+        cut_tensor2 = tensor2[:min_len]
+        
+        cut_tensors1.append(cut_tensor1)
+        cut_tensors2.append(cut_tensor2)
+        
+    text_batch_1 = torch.stack(cut_tensors1, dim=0)
+    text_batch_2 = torch.stack(cut_tensors2, dim=0)
+
+    same_batch = torch.tensor(np.array(same_batch, dtype=int), dtype=torch.long)
+    
+    return text_batch_1, text_batch_2, same_batch
