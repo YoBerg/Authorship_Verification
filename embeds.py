@@ -26,13 +26,11 @@ class BagOfWords(nn.Embedding):
                 for word in text:
                     if word not in self.word_to_ix:
                         self.word_to_ix[word] = index
-                        
                         index += 1
-                    
         n = index - 1
         super(BagOfWords, self).__init__(n, n)
         self.weight.data.copy_(torch.eye(n))
-                    
+
     # Encode a list of words into embeddings.
     def encode(self, data):
         # Set one-hot encodings
