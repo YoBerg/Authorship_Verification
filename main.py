@@ -5,19 +5,19 @@ from models import DAN
 from sklearn.metrics import roc_auc_score, brier_score_loss
 torch_device = torch.device("cpu")
 
-if __name__ == '__main__':
+def DAN_embed():
     features_url = './dataset/pan20-authorship-verification-training-small.jsonl'
     truth_url = './dataset/pan20-authorship-verification-training-small-truth.jsonl'
 
     train_set = DANdataset(features_url, truth_url, 'train')
     train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
     test_set = DANdataset(features_url, truth_url, 'test')
-    test_loader = DataLoader(train_set, batch_size=32, shuffle=True)
+    test_loader = DataLoader(test_set, batch_size=32, shuffle=True)
 
     # train_set = TFIDFdataset(features_url, truth_url)
     # train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
 
-    model = DAN(input_size=50)
+    model = DAN("embed")
 
     criterion = torch.nn.CrossEntropyLoss()
     learning_rate = 0.01
@@ -99,3 +99,6 @@ if __name__ == '__main__':
     print("False Negative: " + str(FN))
     print("ROC AUC Score: " + str(roc_auc_score(groundtruth, final_predictions)))
     print("Brier Score: " + str(brier_score_loss(groundtruth, final_predictions)))
+
+if __name__ == '__main__':
+    DAN_embed()
