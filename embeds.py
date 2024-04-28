@@ -50,7 +50,7 @@ class BagOfWords(nn.Embedding):
         n = index
         super(BagOfWords, self).__init__(n, n)
         self.weight.data.copy_(torch.eye(n))
-                    
+
     # Encode a list of words into embeddings.
     def encode(self, data):
         # Set one-hot encodings

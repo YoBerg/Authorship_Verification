@@ -12,15 +12,17 @@ from pan20_verif_evaluator import auc, c_at_1, f1, f_05_u_score
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class DAN(torch.nn.Module):
-    def __init__(self, input_size):
+    def __init__(self, data_type):
         super(DAN, self).__init__()
-        self.input_size = input_size
-        self.linear = torch.nn.Linear(in_features=input_size, out_features=2)
+        if (data_type == "embed"):
+            self.input_size = 50
+        else:
+            self.input_size = 1
+        self.linear = torch.nn.Linear(in_features=self.input_size, out_features=2)
+        self.data_type = data_type
 
     def forward(self, x):
         return (self.linear(torch.tensor(x)))
-    
-
 
 class LSTM(torch.nn.Module):
     def __init__(self, dim, bidirectional = False):

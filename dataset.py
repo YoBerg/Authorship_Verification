@@ -14,20 +14,22 @@ import numpy as np
 import torch
 from torch.utils.data import IterableDataset, Dataset
 
-import embeds
-
 class DANdataset():
 
     glove_embs = api.load("glove-wiki-gigaword-50")
     keys = glove_embs.index_to_key
 
-    def __init__(self, labels_url, truth_url):
+    def __init__(self, labels_url, truth_url, mode):
         labels = []
         with open (labels_url, 'r') as file:
             i = 0
+            j = 0
             for line in file:
+                if (mode == 'test' and j < 500):
+                    j += 1
+                    continue
                 # print(i)
-                if (i >= 5000 and i < 29500):
+                if (i >= 500 and i < 29500):
                     i += 1
                     continue
                 if (i >= 30000):
@@ -38,8 +40,12 @@ class DANdataset():
         truths = []
         with open (truth_url, 'r') as file:
             i = 0
+            j = 0
             for line in file:
-                if (i >= 1000 and i < 29000):
+                if (mode == 'test' and j < 500):
+                    j += 1
+                    continue
+                if (i >= 500 and i < 29500):
                     i += 1
                     continue
                 if (i >= 30000):
@@ -77,22 +83,33 @@ class DANdataset():
 
         return preprocessed_labels, preprocessed_truth
 
+    def __len__(self):
+        return len(self.truth)
+
+    def __getitem__(self, idx):
+        return self.labels[idx], self.truth[idx]
+
     def embed(self, filtered):
         try:
-            return self.glove_embs[filtered].mean(axis=0)
+            return self.glove_embs[filtered].mean(axis=0).astype(np.float64)
         except KeyError:
             return np.zeros(50, dtype=np.float32)
 
 
 class TFIDFdataset():
 
-    def __init__(self, labels_url, truth_url):
+    def __init__(self, labels_url, truth_url, mode, model):
+        self.model = model
         labels = []
         with open (labels_url, 'r') as file:
             i = 0
+            j = 0
             for line in file:
+                if (mode == 'test' and j < 500):
+                    j += 1
+                    continue
                 print(i)
-                if (i >= 5000 and i < 29500):
+                if (i >= 1000 and i < 29000):
                     i += 1
                     continue
                 if (i >= 30000):
@@ -103,7 +120,11 @@ class TFIDFdataset():
         truths = []
         with open (truth_url, 'r') as file:
             i = 0
+            j = 0
             for line in file:
+                if (mode == 'test' and j < 500):
+                    j += 1
+                    continue
                 if (i >= 1000 and i < 29000):
                     i += 1
                     continue
@@ -113,6 +134,12 @@ class TFIDFdataset():
                 i += 1
 
         self.labels, self.truth = self.preprocess(labels, truths)
+
+    def __len__(self):
+        return len(self.truth)
+
+    def __getitem__(self, idx):
+        return self.labels[idx], self.truth[idx]
 
     def tfidf(self, sentences):
         tfidf = TfidfVectorizer()
@@ -126,6 +153,7 @@ class TFIDFdataset():
         self.tfidf(corpus)
 
         preprocessed_labels = []
+        pairs = [[],[]]
         for label in labels:
             text_1 = label['pair'][0].lower()
             text_2 = label['pair'][1].lower()
@@ -133,22 +161,113 @@ class TFIDFdataset():
             tfidf_1 = self.tfidf.transform([text_1]).toarray()
             tfidf_2 = self.tfidf.transform([text_2]).toarray()
 
-            while(len(tfidf_1) < 100):
-                tfidf_1 = np.append(tfidf_1, 0.0)
+            # while(len(tfidf_1) < 100):
+            #     tfidf_1 = np.append(tfidf_1, 0.0)
 
-            while(len(tfidf_2) < 100):
-                tfidf_2 = np.append(tfidf_2, 0.0)
+            # while(len(tfidf_2) < 100):
+            #     tfidf_2 = np.append(tfidf_2, 0.0)
 
-            tfidf_1 = tfidf_1[100:]
-            tfidf_2 = tfidf_2[100:]
+            # tfidf_1 = tfidf_1[100:]
+            # tfidf_2 = tfidf_2[100:]
 
-            preprocessed_labels.append(tfidf_1 - tfidf_2)
+            if (self.model == "DAN"):
+                print(tfidf_1.mean())
+                print(tfidf_2.mean())
+
+                preprocessed_labels.append(tfidf_1.mean() - tfidf_2.mean())
+            else:
+                pairs[0].append(tfidf_1)
+                pairs[1].append(tfidf_2)
+
 
         preprocessed_truth = []
         for truth in truths:
             preprocessed_truth.append(1 if truth['same'] else 0)
 
-        return preprocessed_labels, preprocessed_truth
+        if (self.model == "DAN"):
+            return preprocessed_labels, preprocessed_truth
+        else:
+            return pairs, preprocessed_truth
+
+# class BoWdataset():
+
+#     def __init__(self, labels_url, truth_url, mode):
+#         labels = []
+#         with open (labels_url, 'r') as file:
+#             i = 0
+#             j = 0
+#             for line in file:
+#                 if (mode == 'test' and j < 500):
+#                     j += 1
+#                     continue
+#                 print(i)
+#                 if (i >= 1000 and i < 29000):
+#                     i += 1
+#                     continue
+#                 if (i >= 30000):
+#                     break
+#                 labels.append(json.loads(line))
+#                 i += 1
+
+#         truths = []
+#         with open (truth_url, 'r') as file:
+#             i = 0
+#             j = 0
+#             for line in file:
+#                 if (mode == 'test' and j < 500):
+#                     j += 1
+#                     continue
+#                 if (i >= 1000 and i < 29000):
+#                     i += 1
+#                     continue
+#                 if (i >= 30000):
+#                     break
+#                 truths.append(json.loads(line))
+#                 i += 1
+
+#         self.labels, self.truth = self.preprocess(labels, truths)
+
+#     def __len__(self):
+#         return len(self.truth)
+
+#     def __getitem__(self, idx):
+#         return self.labels[idx], self.truth[idx]
+
+#     def tfidf(self, sentences):
+#         tfidf = TfidfVectorizer()
+#         self.tfidf = tfidf.fit(sentences)
+
+#     def preprocess(self, labels, truths):
+#         corpus = []
+#         for label in labels:
+#             corpus.append(label['pair'][0].lower())
+#             corpus.append(label['pair'][1].lower())
+
+#         tokenized_corpus = [word_tokenize(text.lower()) for text in corpus]
+
+#         stop_words = set(stopwords.words('english'))
+#         stemmer = nltk.stem.PorterStemmer()
+
+#         filtered_corpus = [[stemmer.stem(word) for word in text if word not in stop_words] for text in tokenized_corpus]
+
+#         preprocessed_labels = []
+#         for label in labels:
+#             text_1 = label['pair'][0].lower()
+#             text_2 = label['pair'][1].lower()
+
+#             tfidf_1 = self.tfidf.transform([text_1]).toarray()
+#             tfidf_2 = self.tfidf.transform([text_2]).toarray()
+
+#             print(tfidf_1.mean())
+#             print(tfidf_2.mean())
+
+#             preprocessed_labels.append(tfidf_1.mean() - tfidf_2.mean())
+
+#         preprocessed_truth = []
+#         for truth in truths:
+#             preprocessed_truth.append(1 if truth['same'] else 0)
+
+#         return preprocessed_labels, preprocessed_truth
 
 
 # ##### Don't need this anymore but will keep it here for now #####
