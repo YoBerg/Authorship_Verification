@@ -6,6 +6,7 @@ import pandas as pd
 from collections import defaultdict
 from tqdm import tqdm
 import string
+import multiprocessing
 
 # from dataset import Pan20Dataset, text_only_collate_fn
 from torch.utils.data import DataLoader
@@ -70,30 +71,32 @@ class BagOfWords(nn.Embedding):
 # Word2Vec
 # Needs to be trained.
 class Word2Vec(nn.Embedding):
-    def __init__(self, dataloader, dim, tokenizer):
-        self.word_to_ix = defaultdict(lambda: 0) # If word is not in dataset, get 0.
-        # Cycle through dataset and get an index for each unique element
-        index = 1 # Leave 0 open for null token
-        pbar = tqdm(dataloader)
-        for batch in pbar:
-            for text in batch:
-                tokens = tokenizer(text)
-                for token in tokens:
-                    if token not in self.word_to_ix:
-                        self.word_to_ix[token] = index
-                        
-                        index += 1
-            pbar.set_description("Size: {}".format(index))
-                    
-        n = index - 1
-        super(Word2Vec, self).__init__(n, dim)
+    def __init__(self, file = None):
+        if file:
+            self.w2v_model = KeyedVectors.load(file)
+
+            super(Word2Vec, self).__init__(len(self.w2v_model.wv), self.w2v_model.vector_size)
+            self.weight.data.copy_(torch.from_numpy(self.w2v_model.wv.vectors))
+            self.word_to_ix = defaultdict(lambda:-1,self.w2v_model.wv.key_to_index)
+            
+
+    def train(self, sentences, dim, window=2, epochs=30):
+        cores = multiprocessing.cpu_count()
+        self.w2v_model = Word2Vec(vector_size=dim, window=window, workers=cores-1, min_count=100, negative=20, sample=6e-5, alpha=0.03)
+
+        self.w2v_model.build_vocab(sentences, progress_per=10000)
+        self.w2v_model.train(sentences, total_examples=self.w2v_model.corpus_count, epochs=epochs, report_delay=1)
+
+        super(Word2Vec, self).__init__(len(self.w2v_model.wv), self.w2v_model.vector_size)
+        self.weight.data.copy_(torch.from_numpy(self.w2v_model.wv.vectors))
+        self.word_to_ix = defaultdict(lambda:-1,self.w2v_model.wv.key_to_index)
 
     def save(self, filename):
-        # TODO. How to save both word_to_ix and weights (preferably together)
+        self.w2v_model.save(filename + '.kvmodel')
         pass
 
     def encode(self, data):
-        indices = torch.tensor([self.word_to_ix[word] for word in data])
+        indices = torch.tensor([self.word_to_ix[word] for word in data if self.word_to_ix[word] != -1])
         return self(indices)
 
     # Just a redirect to encode
