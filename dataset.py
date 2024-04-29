@@ -2,13 +2,13 @@ import json
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from gensim.models import Word2Vec
+from gensim.models import Word2Vec, KeyedVectors
 import gensim.downloader as api
 import pandas as pd
 import numpy as np
 from io import StringIO
 from tqdm import tqdm
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 import numpy as np
 
 import torch
@@ -16,10 +16,14 @@ from torch.utils.data import IterableDataset, Dataset
 
 class DANdataset():
 
-    glove_embs = api.load("glove-wiki-gigaword-50")
-    keys = glove_embs.index_to_key
+    def __init__(self, labels_url, truth_url, mode, type):
+        if (type == "glove"):
+            self.embs = api.load("glove-wiki-gigaword-50")
+            self.keys = self.embs.index_to_key
+        else:
+            self.embs = KeyedVectors.load("./w2v_model.kvmodel").wv
+            self.keys = self.embs.index_to_key
 
-    def __init__(self, labels_url, truth_url, mode):
         labels = []
         with open (labels_url, 'r') as file:
             i = 0
@@ -91,7 +95,7 @@ class DANdataset():
 
     def embed(self, filtered):
         try:
-            return self.glove_embs[filtered].mean(axis=0).astype(np.float64)
+            return self.embs[filtered].mean(axis=0).astype(np.float64)
         except KeyError:
             return np.zeros(50, dtype=np.float32)
 
@@ -189,85 +193,141 @@ class TFIDFdataset():
         else:
             return pairs, preprocessed_truth
 
-# class BoWdataset():
+class BoWdataset():
 
-#     def __init__(self, labels_url, truth_url, mode):
-#         labels = []
-#         with open (labels_url, 'r') as file:
-#             i = 0
-#             j = 0
-#             for line in file:
-#                 if (mode == 'test' and j < 500):
-#                     j += 1
-#                     continue
-#                 print(i)
-#                 if (i >= 1000 and i < 29000):
-#                     i += 1
-#                     continue
-#                 if (i >= 30000):
-#                     break
-#                 labels.append(json.loads(line))
-#                 i += 1
+    def __init__(self, labels_url, truth_url, mode):
+        labels = []
+        with open (labels_url, 'r') as file:
+            i = 0
+            j = 0
+            for line in file:
+                if (mode == 'test' and j < 500):
+                    j += 1
+                    continue
+                print(i)
+                if (i >= 1000 and i < 29000):
+                    i += 1
+                    continue
+                if (i >= 30000):
+                    break
+                labels.append(json.loads(line))
+                i += 1
 
-#         truths = []
-#         with open (truth_url, 'r') as file:
-#             i = 0
-#             j = 0
-#             for line in file:
-#                 if (mode == 'test' and j < 500):
-#                     j += 1
-#                     continue
-#                 if (i >= 1000 and i < 29000):
-#                     i += 1
-#                     continue
-#                 if (i >= 30000):
-#                     break
-#                 truths.append(json.loads(line))
-#                 i += 1
+        truths = []
+        with open (truth_url, 'r') as file:
+            i = 0
+            j = 0
+            for line in file:
+                print(i)
+                if (mode == 'test' and j < 500):
+                    j += 1
+                    continue
+                if (i >= 1000 and i < 29000):
+                    i += 1
+                    continue
+                if (i >= 30000):
+                    break
+                truths.append(json.loads(line))
+                i += 1
 
-#         self.labels, self.truth = self.preprocess(labels, truths)
+        self.labels, self.truth = self.preprocess(labels, truths)
 
-#     def __len__(self):
-#         return len(self.truth)
+    def __len__(self):
+        return len(self.truth)
 
-#     def __getitem__(self, idx):
-#         return self.labels[idx], self.truth[idx]
+    def __getitem__(self, idx):
+        return self.labels[idx], self.truth[idx]
 
-#     def tfidf(self, sentences):
-#         tfidf = TfidfVectorizer()
-#         self.tfidf = tfidf.fit(sentences)
+    # def create_bow(self, corpus):
+    #     countvectorizer = CountVectorizer()
+    #     countvectorizer.fit_transform(corpus)
 
-#     def preprocess(self, labels, truths):
-#         corpus = []
-#         for label in labels:
-#             corpus.append(label['pair'][0].lower())
-#             corpus.append(label['pair'][1].lower())
+    #     self.bow = countvectorizer
+    #     self.vocab = countvectorizer.vocabulary_
 
-#         tokenized_corpus = [word_tokenize(text.lower()) for text in corpus]
+    # def preprocess(self, labels, truths):
+    #     corpus = []
+    #     for label in labels:
+    #         corpus.append(label['pair'][0].lower())
+    #         corpus.append(label['pair'][1].lower())
 
-#         stop_words = set(stopwords.words('english'))
-#         stemmer = nltk.stem.PorterStemmer()
+    #     # tokenized_corpus = [word_tokenize(text.lower()) for text in corpus]
 
-#         filtered_corpus = [[stemmer.stem(word) for word in text if word not in stop_words] for text in tokenized_corpus]
+    #     # stop_words = set(stopwords.words('english'))
+    #     # stemmer = nltk.stem.PorterStemmer()
 
-#         preprocessed_labels = []
-#         for label in labels:
-#             text_1 = label['pair'][0].lower()
-#             text_2 = label['pair'][1].lower()
+    #     # filtered_corpus = [[stemmer.stem(word) for word in text if word not in stop_words] for text in tokenized_corpus]
 
-#             tfidf_1 = self.tfidf.transform([text_1]).toarray()
-#             tfidf_2 = self.tfidf.transform([text_2]).toarray()
+    #     print('a')
+    #     self.create_bow(corpus)
 
-#             print(tfidf_1.mean())
-#             print(tfidf_2.mean())
+    #     preprocessed_labels = []
+    #     for label in labels:
+    #         print('d')
+    #         text_1 = label['pair'][0].lower()
+    #         text_2 = label['pair'][1].lower()
 
-#             preprocessed_labels.append(tfidf_1.mean() - tfidf_2.mean())
+    #         text_1 = word_tokenize(text_1.lower())
+    #         # text_1 = [stemmer.stem(word) for word in text_1]
 
-#         preprocessed_truth = []
-#         for truth in truths:
-#             preprocessed_truth.append(1 if truth['same'] else 0)
+    #         freq_1 = 0
 
-#         return preprocessed_labels, preprocessed_truth
+    #         # keys = list(bow.keys())
+
+    #         for word in text_1:
+    #             if (word in self.vocab):
+    #                 freq_1 += self.bow[self.vocab[word]]
+
+    #         text_2 = word_tokenize(text_2.lower())
+    #         # text_2 = [stemmer.stem(word) for word in text_2]
+
+    #         freq_2 = 0
+
+    #         # keys = list(bow.keys())
+
+    #         for word in text_2:
+    #             if (word in self.vocab):
+    #                 freq_2 += self.bow[self.vocab[word]]
+
+    #         preprocessed_labels.append(freq_1 - freq_2)
+
+    #     preprocessed_truth = []
+    #     for truth in truths:
+    #         preprocessed_truth.append(1 if truth['same'] else 0)
+
+    #     return preprocessed_labels, preprocessed_truth
+
+    def bow(self, sentences):
+        vectorizer = CountVectorizer()
+        vectorizer.fit(sentences)
+        self.vectorizer = vectorizer
+
+    def preprocess(self, labels, truths):
+        corpus = []
+        for label in labels:
+            corpus.append(label['pair'][0].lower())
+            corpus.append(label['pair'][1].lower())
+        self.bow(corpus)
+
+        preprocessed_labels = []
+        pairs = [[],[]]
+        for label in labels:
+            text_1 = label['pair'][0].lower()
+            text_2 = label['pair'][1].lower()
+
+            tfidf_1 = self.vectorizer.transform([text_1]).toarray()
+            tfidf_2 = self.vectorizer.transform([text_2]).toarray()
+
+            print(tfidf_1.sum())
+            print(tfidf_2.sum())
+
+            preprocessed_labels.append(float(tfidf_1.sum() - tfidf_2.sum()))
+
+        preprocessed_truth = []
+        for truth in truths:
+            preprocessed_truth.append(1 if truth['same'] else 0)
+
+        return preprocessed_labels, preprocessed_truth
 
 
 # ##### Don't need this anymore but will keep it here for now #####
