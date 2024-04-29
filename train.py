@@ -43,8 +43,8 @@ PATH_TO_TRUTH = os.path.join(DATA_ROOT, TRUTH_FILE)
 PATH_TO_TEST_DATA = os.path.join(DATA_ROOT, TEST_FILE)
 PATH_TO_TEST_TRUTH = os.path.join(DATA_ROOT, TEST_TRUTH_FILE)
 
-sample_size = 2048
-test_size = 2048
+sample_size = 128
+test_size = 1028
 
 def plot_learning_curve(train_losses, test_losses=None, dev_losses=None, file = None):
     """
@@ -83,13 +83,16 @@ def plot_learning_curve(train_losses, test_losses=None, dev_losses=None, file = 
     
 print("Loading embedding model...")
 
-glove = embeds.GloVe("glove.kvmodel")
+emb_model = embeds.Word2Vec("w2v_model.kvmodel")
+# emb_model = embeds.GloVe("glove.kvmodel")
+# words_df = pd.read_csv("unigram_freq.csv")
+# emb_model = embeds.BagOfWords(words_df["word"].values[:49], words=True)
 
 print("Creating dataset...")
 
-dataset = Pan20Dataset(PATH_TO_TRAIN, PATH_TO_TRUTH, embedding = glove, dlen=52601)
+dataset = Pan20Dataset(PATH_TO_TRAIN, PATH_TO_TRUTH, embedding = emb_model, dlen=52601)
 
-test_dataset = Pan20Dataset(PATH_TO_TEST_DATA, PATH_TO_TEST_TRUTH, embedding = glove, dlen=14311)
+test_dataset = Pan20Dataset(PATH_TO_TEST_DATA, PATH_TO_TEST_TRUTH, embedding = emb_model, dlen=14311)
 
 indices = list(range(len(dataset)))
 
@@ -108,19 +111,24 @@ print("Creating model...")
 
 
 lstm = LSTM(50)
+# lstm.load_state_dict(torch.load("lstm_cp4.pt"))
 lstm = lstm.to(device)
 lstm.load_data(loader)
 
 print("Beginning training...")
 
-losses, batch_losses = lstm.fit(epochs = 16, lr = 1e-3, decay = 1e-4)
+losses, batch_losses = lstm.fit(epochs = 8, lr = 1e-3, decay = 1e-4)
 
 print("Saving results...")
 
-torch.save(lstm.state_dict(), "lstm.pt")
+torch.save(lstm.state_dict(), "lstm_w2v_cp1.pt")
 plot_learning_curve(losses, file="train_curve.png")
 
-print("Showing Evaluation...")
+print("Training Evaluation...")
+
+lstm.evaluate_dataloader(loader)
+
+print("Testing Evaluation...")
 
 lstm.evaluate_dataloader(test_loader)
 

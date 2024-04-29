@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
-torch.set_default_dtype(torch.float64)
-torch.use_deterministic_algorithms(True)
+# torch.set_default_dtype(torch.float64)
+# torch.use_deterministic_algorithms(True)
 
 import numpy as np
 from tqdm import tqdm
 
-from sklearn.metrics import classification_report, f1_score, roc_auc_score
+from sklearn.metrics import classification_report, f1_score, roc_auc_score, confusion_matrix, ConfusionMatrixDisplay, brier_score_loss
+import matplotlib.pyplot as plt
 from pan20_verif_evaluator import auc, c_at_1, f1, f_05_u_score
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -36,6 +37,8 @@ class LSTM(torch.nn.Module):
         # self.cos = nn.CosineSimilarity(dim=1, eps=1e-08)
         self.linear = nn.Sequential(
             nn.Linear(64 * 2, 1),
+            # nn.ReLU(),
+            # nn.Linear(64,1),
             nn.Sigmoid()
         )
         
@@ -71,8 +74,8 @@ class LSTM(torch.nn.Module):
         
         optimizer = torch.optim.Adam(self.model.parameters(), lr = lr, weight_decay = decay)
         # loss_fn = nn.CrossEntropyLoss()
-        # loss_fn = nn.MSELoss()
-        loss_fn = nn.BCELoss() # Try MSE too?
+        loss_fn = nn.MSELoss()
+        # loss_fn = nn.BCELoss() # Try MSE too?
         run_loss = 0
         n_run = 0
         batch_losses = []
@@ -117,27 +120,37 @@ class LSTM(torch.nn.Module):
         self.eval()
         return self.forward(X1, X2)
 
-    def evaluate_dataloader(self, dataloader):
+    def evaluate_dataloader(self, dataloader, shift = 0):
         self.eval()
         
         all_preds = torch.tensor([])
         all_y = torch.tensor([])
         for batch in tqdm(dataloader):
             x1, x2, y = batch
-            preds = self.predict(x1,x2).detach().cpu()
+            preds = self.predict_proba(x1,x2).detach().cpu()
             y = y.detach().cpu()
             all_preds = torch.cat((all_preds, preds))
             all_y = torch.cat((all_y, y))
 
-        print(classification_report(all_y, all_preds))
+        all_preds = all_preds + shift
+
+        print(classification_report(all_y, torch.round(all_preds)))
 
         ac_s = auc(all_y, all_preds)
         c1_s = c_at_1(all_y, all_preds)
         f1_s = f1(all_y, all_preds)
         f5_s = f_05_u_score(all_y, all_preds)
+        br_s = brier_score_loss(all_y, preds)
         
         print(f"AUC Score: {ac_s}")
         print(f"C@1 Score: {c1_s}")
         print(f"f1  Score: {f1_s}")
         print(f"f.5 Score: {f5_s}")
         print(f"Final Score: {np.average([ac_s, c1_s, f1_s, f5_s])}")
+
+        print(f"Brier Score Loss: {br_s}")
+
+        cm = confusion_matrix(all_y, torch.round(all_preds))
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+        disp.plot()
+        plt.savefig('confusion_matrix.png')
