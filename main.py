@@ -1,4 +1,4 @@
-from dataset import DANdataset, TFIDFdataset
+from dataset import DANdataset, TFIDFdataset, BoWdataset
 from torch.utils.data import DataLoader
 import torch
 from models import DAN
@@ -9,15 +9,28 @@ def DAN_embed():
     features_url = './dataset/pan20-authorship-verification-training-small.jsonl'
     truth_url = './dataset/pan20-authorship-verification-training-small-truth.jsonl'
 
-    train_set = DANdataset(features_url, truth_url, 'train')
+    # train_set = DANdataset(features_url, truth_url, 'train', 'glove')
+    # train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
+    # test_set = DANdataset(features_url, truth_url, 'test', 'glove')
+    # test_loader = DataLoader(test_set, batch_size=32, shuffle=True)
+
+    # train_set = DANdataset(features_url, truth_url, 'train', 'self')
+    # train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
+    # test_set = DANdataset(features_url, truth_url, 'test', 'self')
+    # test_loader = DataLoader(test_set, batch_size=32, shuffle=True)
+
+    # train_set = TFIDFdataset(features_url, truth_url, 'train', 'DAN')
+    # train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
+    # test_set = TFIDFdataset(features_url, truth_url, 'test', 'DAN')
+    # test_loader = DataLoader(test_set, batch_size=32, shuffle=True)
+
+    train_set = BoWdataset(features_url, truth_url, 'train')
     train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
-    test_set = DANdataset(features_url, truth_url, 'test')
+    test_set = BoWdataset(features_url, truth_url, 'test')
     test_loader = DataLoader(test_set, batch_size=32, shuffle=True)
 
-    # train_set = TFIDFdataset(features_url, truth_url)
-    # train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
-
-    model = DAN("embed")
+    model_type = "tf-idf"
+    model = DAN(model_type)
 
     criterion = torch.nn.CrossEntropyLoss()
     learning_rate = 0.01
@@ -28,7 +41,10 @@ def DAN_embed():
     for epoch in range(num_epochs):
         print("Epoch: " + str(epoch))
         for batch_idx, (features, labels) in enumerate(train_loader):
-            features = features.to(torch_device).squeeze(1)
+            if (model_type == "tf-idf"):
+                features = features.to(torch_device).unsqueeze(1)
+            else:
+                features = features.to(torch_device).squeeze(1)
             labels = labels.to(torch_device)
 
             scores = model(features)
@@ -45,7 +61,10 @@ def DAN_embed():
         num_samples = 0
         with torch.no_grad():
             for batch_idx, (features, labels) in enumerate(train_loader):
-                features = features.to(torch_device).squeeze(1)
+                if (model_type == "tf-idf"):
+                    features = features.to(torch_device).unsqueeze(1)
+                else:
+                    features = features.to(torch_device).squeeze(1)
                 labels = labels.to(torch_device)
 
                 scores = model(features)
@@ -71,7 +90,10 @@ def DAN_embed():
 
     with torch.no_grad():
         for batch_idx, (features, labels) in enumerate(test_loader):
-            features = features.to(torch_device).squeeze(1)
+            if (model_type == "tf-idf"):
+                features = features.to(torch_device).unsqueeze(1)
+            else:
+                features = features.to(torch_device).squeeze(1)
 
             scores = model(features)
 
